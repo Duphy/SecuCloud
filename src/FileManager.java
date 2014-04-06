@@ -43,7 +43,9 @@ class FileManager {
 			Date date = new Date();
 			DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd-HH-mm-ss");
 			String path = P.getAbsolutePath();
-			P = new File(path+"_"+dateFormat.format(date));
+			P.delete();
+			//P = new File(path+"_"+dateFormat.format(date));
+			P = new File(save.getAbsolutePath()+"/"+D.getName());
 			P.mkdirs();
 		}
 		while(off < f_size){
@@ -106,6 +108,7 @@ class FileManager {
 	public static UpdateResult bytesUpdate(File D, Modification M) throws FileNotFoundException, IOException, ClassNotFoundException{
 		int k_0 = 0;//before this index, No block is changed
 		int k_1 = 0;//after this block, No block is changed
+		final int INF = -2;
 		int l = 0;//accumulate length
 		int i = M.getFirstBytePosition();
 		int j = M.getSecondBytePosition();
@@ -122,9 +125,9 @@ class FileManager {
 			k_0=-1;//go to step 10
 			flag_10 = true;
 		}
-		else if(i==size){//append to the file
+		else if(i>=size){//append to the file
 			k_0 = metafile.size()-1;
-			k_1 = Integer.MAX_VALUE;
+			k_1 = metafile.size();//indicate infinately
 			flag_15 = true;
 		}//go to step 15
 		if(!flag_10&&!flag_15){
@@ -134,20 +137,31 @@ class FileManager {
 			if(l>0){//the size before the insert index is larger than insert size. step 8
 				int u_k0 = metafile.get(k_0).getSecond();//length
 				int len = u_k0-l;
-				byte[] content = getPartContent(metafile, k_0,0,len);
+				byte[] content = null;
+				if(len>0){
+					content = getPartContent(metafile, k_0,0,len);
+				}
+				else{
+					len=0;
+				}
 				//System.out.println("Before is ");
 				//System.out.println(Arrays.toString(content));
 				M.insertFront(content);//append the modification to the begin of file
-				c=c+u_k0-l;
+				
+				c=c+len;
 				k_0=k_0-1;
 			}
 		}
 		if(!flag_15){
-			k_1=getPartitionIndex(metafile,j-1);//step 10
-			l=getPartitionsSize(metafile,0,k_1)-j+1;
+			k_1=getPartitionIndex(metafile,j);//step 10
+			l=getPartitionsSize(metafile,0,k_1)-j;//get length of the remaining bytes in B_k1
 			if(l>0){
 				int u_k1 = metafile.get(k_1).getSecond();//length
-				byte[] content = getPartContent(metafile, k_1,(u_k1-l+1),u_k1);
+				int start = u_k1-l+1;
+				int end = u_k1;
+				//System.out.println("start is "+ start);
+				//System.out.println("end is "+ end);
+				byte[] content = getPartContent(metafile, k_1,start,end);
 				//System.out.println("After is ");
 				//System.out.println(Arrays.toString(content));
 				M.append(content);//append the modification to the end of file
@@ -168,7 +182,7 @@ class FileManager {
 				flag_27 = true;//go to step27
 			}
 			else if(x<c){
-				c-=x;
+				c=c-x;
 				byte[] temp = new byte[x];
 				System.arraycopy(M.getModification(),0,temp,0,x-1);
 				Partition B = new Partition(temp,x);
@@ -181,7 +195,7 @@ class FileManager {
 				if(k_1==metafile.size()){
 					Partition B = new Partition(M.getModification(),c);
 					B_p.add(B);
-					k_1 = Integer.MAX_VALUE;
+					k_1 = metafile.size();
 					flag_27 = true;//go to step 27
 				}
 				else{
@@ -298,6 +312,7 @@ class FileManager {
 		int len = end - start;
 		InputStream binputStream= new FileInputStream(f1);  
 		byte buf[]=new byte[len];
+		System.out.println("Part Length is "+len);
 		binputStream.skip(start);
 		binputStream.read(buf);
 		binputStream.close();
@@ -355,15 +370,20 @@ class FileManager {
 	public static void main(String []args) throws FileNotFoundException, NoSuchAlgorithmException, IOException, ClassNotFoundException{
 		FileManager fm = new FileManager();
 		File f = new File("/Users/Andy/Downloads/short1.txt");
+		System.out.println(f.length());
 		fm.splitFiles(f);
 		File f1 = new File(fm.save.getAbsolutePath()+"/short1.txt");
 		byte[] modi = new byte[2];
 		LinkedList<Pair<String, Integer>> metafile = fm.extractMeta(f1);
+		System.out.println("Length is "+ fm.getFileSize(metafile));
+		int b_index = -2;
+		int f_index = b_index+1;
 		byte[]buf1 = fm.getContent(metafile,0, 10);
 		System.out.println(Arrays.toString(buf1));
-		Modification M = new Modification("Delete", modi, -1,0); 
+		Modification M = new Modification("Delete", modi, b_index,f_index); 
 		top(f1,M);
 		metafile = fm.extractMeta(f1);
+		System.out.println("Length is "+ fm.getFileSize(metafile));
 		byte[]buf2 = fm.getContent(metafile,0, 10);
 		System.out.println(Arrays.toString(buf2));
 		System.out.println("finish");
@@ -371,7 +391,14 @@ class FileManager {
 	public static void test_get_content_and_compare(String []args) throws IOException, ClassNotFoundException{
 		FileManager fm = new FileManager();
 		File f = new File("/Users/Andy/Downloads/short1.txt");
-		//fm.splitFiles(f);
+		//File f = new File("/Users/Andy/Downloads/short.nds");
+		try {
+			fm.splitFiles(f);
+		} catch (NoSuchAlgorithmException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		//File f1 = new File(fm.save.getAbsolutePath()+"/short1.txt");
 		File f1 = new File(fm.save.getAbsolutePath()+"/short1.txt");
 		//fm.mergeFiles(f1);
 		LinkedList<Pair<String, Integer>> metafile = fm.extractMeta(f1);

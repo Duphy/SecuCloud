@@ -31,11 +31,13 @@ public class Modification {
 	   mod=combined;
    }
    public void insertFront(byte[] n){
+	   if(n!=null){
 	   byte[] combined = new byte[mod.length + n.length];
 
 	   System.arraycopy(n,0,combined,0, n.length);
 	   System.arraycopy(mod,0,combined,n.length,mod.length);
 	   mod=combined;   
+	   }
    }
    public void setModification(byte[] n) {
 	   byte[] combined = new byte[n.length];
