@@ -36,7 +36,7 @@ class FileManager {
 		Random r = new Random();
 		InputStream ios = new FileInputStream(D);
 		File P = new File(save.getAbsolutePath()+"/"+D.getName());
-		LinkedList<Pair<String, Integer>> meta = new LinkedList<Pair<String, Integer>>();
+		LinkedList<Records> meta = new LinkedList<Records>();
 		if(!P.exists())
 			P.mkdirs();
 		else{//if a previous version exists
@@ -73,7 +73,7 @@ class FileManager {
 			} catch (IOException e) {
 				e.printStackTrace();
 			}			
-			meta.add(new Pair<String, Integer>(segment.getAbsolutePath(),R));
+			meta.add(new Records(segment.getAbsolutePath(),R,Arrays.toString(hash(buffer))));
 		}
 		ios.close();
 		//write meta file
@@ -91,10 +91,10 @@ class FileManager {
 		if(D_out.exists())
 			D_out.delete();
 		FileOutputStream fos = new FileOutputStream(D_out);
-		LinkedList<Pair<String, Integer>> metafile = extractMeta(folder);
+		LinkedList<Records> metafile = extractMeta(folder);
 		for (int i = 0; i<metafile.size();i++){
-			int len = metafile.get(i).getSecond();  
-			File f1=new File(metafile.get(i).getFirst());  
+			int len = metafile.get(i).getSize();  
+			File f1=new File(metafile.get(i).getFilename());  
 			InputStream binputStream= new FileInputStream(f1);  
 			byte buf[]=new byte[len];
 			binputStream.read(buf);
@@ -119,7 +119,7 @@ class FileManager {
 		boolean flag_15 = false;
 		boolean flag_16 = false;
 		boolean flag_27 = false;
-		LinkedList<Pair<String, Integer>> metafile = extractMeta(D);
+		LinkedList<Records> metafile = extractMeta(D);
 		int size = getFileSize(metafile);
 		if(i==-1){//insert at beginning of the file
 			k_0=-1;//go to step 10
@@ -135,7 +135,7 @@ class FileManager {
 			k_0 = index;
 			l = getPartitionsSize(metafile, 0, k_0)-i;
 			if(l>0){//the size before the insert index is larger than insert size. step 8
-				int u_k0 = metafile.get(k_0).getSecond();//length
+				int u_k0 = metafile.get(k_0).getSize();//length
 				int len = u_k0-l;
 				byte[] content = null;
 				if(len>0){
@@ -157,7 +157,7 @@ class FileManager {
 			k_1=getPartitionIndex(metafile,j);//step 10
 			l=getPartitionsSize(metafile,0,k_1)-j;//get length of the remaining bytes in B_k1
 			if(l>0){
-				int u_k1 = metafile.get(k_1).getSecond();//length
+				int u_k1 = metafile.get(k_1).getSize();//length
 				int start = u_k1-l+1;
 				int end = u_k1;
 				//System.out.println("start is "+ start);
@@ -205,7 +205,7 @@ class FileManager {
 					flag_27 = true;//go to step 27
 				}
 				else{
-					int u_k1 =metafile.get(k_1).getSecond();
+					int u_k1 =metafile.get(k_1).getSize();
 					c+=u_k1;
 					M.append(getPartition(metafile, k_1));
 					k_1++;
@@ -219,15 +219,15 @@ class FileManager {
 	public static void top(File D, Modification M) throws FileNotFoundException, IOException, ClassNotFoundException, NoSuchAlgorithmException{
 		UpdateResult results = bytesUpdate(D, M);
 		//delete affect positions of metafile first
-		LinkedList<Pair<String, Integer>> metafile = extractMeta(D);
+		LinkedList<Records> metafile = extractMeta(D);
 		int start_point = Math.max(0,results.getFirst());
 		int end_point = Math.min(metafile.size(),results.getSecond());
 		System.out.println("Start point is "+start_point);
 		System.out.println("End point is "+end_point);
-		LinkedList<Pair<String, Integer>> new_meta = new LinkedList<Pair<String, Integer>>();
+		LinkedList<Records> new_meta = new LinkedList<Records>();
 		if(start_point>0){
 			for(int j = 0; j<start_point;j++){
-				//File delete = new File(metafile.get(j).getFirst());
+				//File delete = new File(metafile.get(j).getFilename());
 				//delete.delete();
 				new_meta.add(metafile.get(j));
 				//metafile.remove(j);
@@ -249,8 +249,8 @@ class FileManager {
 			fos = new FileOutputStream(segment);
 			fos.write(buffer);
 			fos.close();
-			Pair<String, Integer> buf = new Pair<String, Integer>(segment.getAbsolutePath(),
-					(int)results.getPartitions().get(i).getLength());
+			Records buf = new Records(segment.getAbsolutePath(),
+					(int)results.getPartitions().get(i).getLength(),Arrays.toString(hash(buffer)));
 			new_meta.add(buf);
 //			start_point++;
 		}
@@ -258,7 +258,7 @@ class FileManager {
 			new_meta.add(metafile.get(m));
 		}
 		for(int n = start_point; n<end_point;n++){
-			//File delete = new File(metafile.get(n).getFirst());
+			//File delete = new File(metafile.get(n).getFilename());
 		    //delete.delete();
 		}
 		System.out.println("meta size is "+ new_meta.size());
@@ -270,12 +270,12 @@ class FileManager {
 		//}
 		outputStream.close();	
 	}
-	private static int getPartitionIndex(LinkedList<Pair<String, Integer>> metafile, int i) {
+	private static int getPartitionIndex(LinkedList<Records> metafile, int i) {
 		int sum = 0;
 		int index = 0;
 		while (sum<i){
-			Pair<String, Integer> part = metafile.get(index);
-			sum += part.getSecond();
+			Records part = metafile.get(index);
+			sum += part.getSize();
 			if(sum>=i)
 				break;
 			else{
@@ -285,45 +285,45 @@ class FileManager {
 		return index;
 	}
 	//get the size of some continuous partitions
-	private static int getPartitionsSize(LinkedList<Pair<String, Integer>> metafile,int initial,
+	private static int getPartitionsSize(LinkedList<Records> metafile,int initial,
 			int end) {
 		int size = 0;
 		for(int i=initial;i<=end;i++){
-			size+=metafile.get(i).getSecond();
+			size+=metafile.get(i).getSize();
 		}
 		return size;
 	}
 	//get the meta file of a split folder
-	public static LinkedList<Pair<String, Integer>> extractMeta(File folder) throws FileNotFoundException, IOException, ClassNotFoundException{
+	public static LinkedList<Records> extractMeta(File folder) throws FileNotFoundException, IOException, ClassNotFoundException{
 		File meta_file = new File(folder.getAbsolutePath()+"/meta");
 		ObjectInputStream inputStream = new ObjectInputStream(new FileInputStream(meta_file));
 		@SuppressWarnings("unchecked")
-		LinkedList<Pair<String, Integer>> metafile = (LinkedList<Pair<String, Integer>>) inputStream.readObject();
+		LinkedList<Records> metafile = (LinkedList<Records>) inputStream.readObject();
 		inputStream.close();
 		return metafile;
 	}
 	//get the total size of a split file
-	public static int getFileSize(LinkedList<Pair<String, Integer>> metafile){
+	public static int getFileSize(LinkedList<Records> metafile){
 		int size = 0;
 		for(int i=0;i<metafile.size();i++){
-			size+=metafile.get(i).getSecond();
+			size+=metafile.get(i).getSize();
 		}
 		return size;
 	}
 	//get the partition content of a partition
-	public static byte[] getPartition(LinkedList<Pair<String, Integer>> metafile, int index) throws IOException{
-		Pair<String, Integer> target = metafile.get(index);
-		File f1=new File(target.getFirst());  
-		int len = target.getSecond();
+	public static byte[] getPartition(LinkedList<Records> metafile, int index) throws IOException{
+		Records target = metafile.get(index);
+		File f1=new File(target.getFilename());  
+		int len = target.getSize();
 		InputStream binputStream= new FileInputStream(f1);  
 		byte buf[]=new byte[len];
 		binputStream.read(buf);
 		binputStream.close();
 		return buf;
 	}
-	public static byte[] getPartContent(LinkedList<Pair<String, Integer>> metafile, int index, int start, int end) throws IOException{
-		Pair<String, Integer> target = metafile.get(index);
-		File f1=new File(target.getFirst());  
+	public static byte[] getPartContent(LinkedList<Records> metafile, int index, int start, int end) throws IOException{
+		Records target = metafile.get(index);
+		File f1=new File(target.getFilename());  
 		int len = end - start;
 		InputStream binputStream= new FileInputStream(f1);  
 		byte buf[]=new byte[len];
@@ -334,7 +334,7 @@ class FileManager {
 		return buf;
 	}
 	//get the content between 2 index of bytes
-	public byte[] getContent(LinkedList<Pair<String, Integer>> metafile, int first, int second) throws IOException{
+	public byte[] getContent(LinkedList<Records> metafile, int first, int second) throws IOException{
 		int sum = 0;
 		int i=0;
 		long start_position=0;
@@ -345,27 +345,27 @@ class FileManager {
 		byte[] result = new byte[second-first];
 		while (sum<second){
 			start_position = 0;
-			Pair<String, Integer> target = metafile.get(i);
+			Records target = metafile.get(i);
 			i++;
-			sum+=target.getSecond();//count bytes
+			sum+=target.getSize();//count bytes
 			end_position = Math.min(sum, second);
 			if(sum>=first){//reach the first index
 				if(flag_first){//if it is first time, start_position may be the middle of a file
 							  //rest cases, the start point should be the start of the file
-					if(first<target.getSecond())
+					if(first<target.getSize())
 						start_position = first;
 					else
-						start_position = first-sum+target.getSecond();//get relative position of the first index
+						start_position = first-sum+target.getSize();//get relative position of the first index
 					flag_first=false;
 				}
 				flag_start = true;//find the first index and start to read byte
 				if(sum>=second)
-					end_position = second-sum+target.getSecond();//get related position of second
+					end_position = second-sum+target.getSize();//get related position of second
 				else
-					end_position = target.getSecond();//end of a file
+					end_position = target.getSize();//end of a file
 			}
 			if(flag_start){
-				File f1=new File(target.getFirst());  
+				File f1=new File(target.getFilename());  
 				long len = end_position - start_position;
 				InputStream binputStream= new FileInputStream(f1);  
 				binputStream.skip(start_position);
@@ -388,18 +388,18 @@ class FileManager {
 		fm.splitFiles(f);
 		File f1 = new File(fm.save.getAbsolutePath()+"/short1.txt");
 		byte[] modi = new byte[2];
-		LinkedList<Pair<String, Integer>> metafile = fm.extractMeta(f1);
+		LinkedList<Records> metafile = fm.extractMeta(f1);
 		System.out.println("Length is "+ fm.getFileSize(metafile));
-		int b_index = 0;
+		int b_index = 5000;
 		int f_index = b_index+1;
 		//byte[]buf1 = fm.getContent(metafile,5170, 5180);
-		byte[]buf1 = fm.getContent(metafile,0, 20);
+		byte[]buf1 = fm.getContent(metafile,5000, 5020);
 		System.out.println(Arrays.toString(buf1));
 		Modification M = new Modification("Delete", modi, b_index,f_index); 
 		top(f1,M);
 		metafile = fm.extractMeta(f1);
 		System.out.println("Length is "+ fm.getFileSize(metafile));
-		byte[]buf2 = fm.getContent(metafile,0,20);
+		byte[]buf2 = fm.getContent(metafile,5000,5020);
 		//byte[]buf2 = fm.getContent(metafile,fm.getFileSize(metafile)-10, fm.getFileSize(metafile));
 		System.out.println(Arrays.toString(buf2));
 		System.out.println("finish");
@@ -417,7 +417,7 @@ class FileManager {
 		//File f1 = new File(fm.save.getAbsolutePath()+"/short1.txt");
 		File f1 = new File(fm.save.getAbsolutePath()+"/short1.txt");
 		//fm.mergeFiles(f1);
-		LinkedList<Pair<String, Integer>> metafile = fm.extractMeta(f1);
+		LinkedList<Records> metafile = fm.extractMeta(f1);
 		int first = 18049;
 		int second = 18151;
 		//size of 0 = 18049;
@@ -441,7 +441,7 @@ class FileManager {
 		//fm.splitFiles(f);
 		File f1 = new File(fm.save.getAbsolutePath()+"/short1.txt");
 		//fm.mergeFiles(f1);
-		LinkedList<Pair<String, Integer>> metafile = fm.extractMeta(f1);
+		LinkedList<Records> metafile = fm.extractMeta(f1);
 		int first = 1;
 		int second = 10;
 		byte[] buf1 = fm.getContent(metafile, first, second);
